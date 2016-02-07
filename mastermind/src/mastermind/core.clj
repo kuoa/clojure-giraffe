@@ -119,6 +119,11 @@
   [code-size text]
   (and (= (count text) code-size) (boolean (re-matches #"[rgbypc]+" text))))
 
+(defn game-finished?
+  "Checks if the game is finished"
+  [indic]
+  (every? #(= :good %) indic))
+
 (defn random-color-text
   "Generate a text-string using random colors"
   [text]
@@ -187,12 +192,48 @@
        (repeat-s 10) (colored-text "yellow " :yellow) "present but different position" n
        (repeat-s 10) (colored-text "purple " :purple) "present at the good position" n
        (repeat-s 10) (colored-text "cyan " :cyan) "not present" n
+       "To quit:  " (colored-text "exit" :blue) n
        (surround-text "LET'S PLAY") n
-       "Code size : " (colored-text code-size :red)))
+       "Code size  : " (colored-text code-size :red)))
+
+(defn prompt-move
+  "Promt a move"
+  [code-size]
+  (print "Your guess : ")
+  (flush)
+  (let [input (get-input)]
+    (if (valid-move? code-size input)
+      (do
+        (println (repeat-s 12)
+                 (answer-to-color (answer-to-color-keyword input)))
+        (answer-to-color-keyword input))
+      (do 
+        (println (colored-text "\nInvalid move" :red))
+        (prompt-move code-size)))))
+
+
+
+
+(defn game-loop
+  "Main game loop"
+  []
+  (println (start-screen 5))
+  (let [size 5, answer (code-secret size)]
+    (println "Answer" (answer-to-color answer))
+    (loop [stop false]
+      (if (not stop)
+        (let [try (prompt-move size),
+              indic (filtre-indications answer try (indications answer try))
+              attempt (indic-to-color-keyword answer indic)]
+          (do
+            (println "Attempt     "(answer-to-color attempt))
+            ;;(println "Indications" indic)
+            (recur (game-finished? indic))))))
+      (println "Game Finished")))
+
 
 (defn -main
   "I don't do a whole lot ... yet."
   [& args]
- ;; (println (answer-to-color[:blue :red :blue :green]))
- ;;  (println (answer-to-color [:blue :black :grey :black]))
-  (println (start-screen 5)))
+  (game-loop))
+

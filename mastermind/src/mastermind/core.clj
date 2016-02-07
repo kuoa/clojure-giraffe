@@ -18,14 +18,14 @@
 ;; used in this part. One must learn.    ;;
 ;;***************************************;;
 
+(def colors [:red, :green, :blue, :yellow, :purple, :cyan])
 
 (defn code-secret [n]
   "Returns a vector containing n random colors"
-  (let [colors [:red, :green, :blue, :yellow, :purple, :cyan]]
     (loop [n n, res []]
       (if (zero? n)
         res
-        (recur (dec n) (conj res (rand-nth colors)))))))
+        (recur (dec n) (conj res (rand-nth colors))))))
 
 
 (defn indications [answer, try]
@@ -88,6 +88,8 @@
 (def color-code (zipmap [:black, :red, :green, :yellow, :blue, :purple, :cyan, :white, :grey]
                         [0, 1, 2, 3, 4, 5, 6, 7, 8]))
 
+(def indic-code (zipmap [:color :bad] [:grey :black]))
+
 
 (defn colored-text
   "Returns a colored text using escape sequences"
@@ -117,20 +119,80 @@
   [code-size text]
   (and (= (count text) code-size) (boolean (re-matches #"[rgbypc]+" text))))
 
-(defn to-color-keyword
+(defn random-color-text
+  "Generate a text-string using random colors"
+  [text]
+
+  (clojure.string/join (map colored-text text (code-secret (count text)))))
+
+(defn answer-to-color-keyword
   "Converts the string-answer to a color-keyword vector"
   [text]
   (let [char-seq (re-seq #"[rgbypc]" text)]
     (mapv #(color-char %) char-seq)))
 
-(defn to-color-string
+(defn answer-to-color
   "Prints a colored version of the answer"
   [color-vector]
   (let [colored-vec (map #(colored-back "  " %) color-vector)]
     (clojure.string/join " " colored-vec)))
 
+(defn indic-to-color-keyword
+  "Prints a colored version of the indication vector.
+  Good -> same color, Bad -> black, Color present -> white"
+  [answer, indic]
+  (loop [i 0, res []]
+    (if (< i (count indic))
+      (if (= :good (get indic i))
+        (recur (inc i) (conj res (get answer i) ))             ;; add color
+        (recur (inc i) (conj res ((get indic i) indic-code)))) ;; add color-code
+      res)))
+
+
+;;***************************************;;
+;;                  UI                   ;;  
+;;***************************************;;
+;;             Text Screens              ;; 
+;;***************************************;;
+
+(def center "                ")
+(def line "_______________________________________________")
+(def n "\n")
+
+(defn surround-text [txt]
+  (str line n n center txt n line n))
+
+(defn repeat-s [n]
+  (clojure.string/join (repeat n " ")))
+
+
+(defn start-screen
+  "Start screen string"  
+  [code-size]
+  (str n n
+       (surround-text (random-color-text "MASTER MIND")) n
+       "Colors : " 
+       (clojure.string/join " " (map #(colored-text (name %) %) colors)) n
+       "Answer example : "
+       (clojure.string/join (map #(colored-text (first %) (second %)) color-char)) n n
+       "Display example : "
+       (answer-to-color colors) n
+       "Hint example :    "
+       (answer-to-color
+        (indic-to-color-keyword colors [:good :color :bad :color :good :bad])) n n
+       "Meaning : "
+       (colored-text "red " :red) "present at the good position" n
+       (repeat-s 10) (colored-text "green " :green) "present but different position" n
+       (repeat-s 10) (colored-text "blue " :blue) "not present" n
+       (repeat-s 10) (colored-text "yellow " :yellow) "present but different position" n
+       (repeat-s 10) (colored-text "purple " :purple) "present at the good position" n
+       (repeat-s 10) (colored-text "cyan " :cyan) "not present" n
+       (surround-text "LET'S PLAY") n
+       "Code size : " (colored-text code-size :red)))
+
 (defn -main
   "I don't do a whole lot ... yet."
   [& args]
-  (println (to-color-string [:red, :green, :blue, :yellow, :purple, :cyan]))
-  (println (to-color-string [:red, :green, :blue, :yellow, :purple, :cyan])))
+ ;; (println (answer-to-color[:blue :red :blue :green]))
+ ;;  (println (answer-to-color [:blue :black :grey :black]))
+  (println (start-screen 5)))

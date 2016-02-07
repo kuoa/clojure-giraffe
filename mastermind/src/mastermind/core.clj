@@ -130,20 +130,20 @@
 
   (clojure.string/join (map colored-text text (code-secret (count text)))))
 
-(defn answer-to-color-keyword
+(defn text-to-color-vec
   "Converts the string-answer to a color-keyword vector"
   [text]
   (let [char-seq (re-seq #"[rgbypc]" text)]
     (mapv #(color-char %) char-seq)))
 
-(defn answer-to-color
-  "Prints a colored version of the answer"
+(defn color-vec-to-print
+  "Returns a string-colored version of the answer"
   [color-vector]
   (let [colored-vec (map #(colored-back "  " %) color-vector)]
     (clojure.string/join " " colored-vec)))
 
-(defn indic-to-color-keyword
-  "Prints a colored version of the indication vector.
+(defn ind-to-color-vec
+  "Returns a colored version of the indication vector.
   Good -> same color, Bad -> black, Color present -> white"
   [answer, indic]
   (loop [i 0, res []]
@@ -170,70 +170,103 @@
 (defn repeat-s [n]
   (clojure.string/join (repeat n " ")))
 
+(def game-screen (str n n (surround-text (random-color-text "MASTER MIND")) n))
 
-(defn start-screen
-  "Start screen string"  
-  [code-size]
-  (str n n
-       (surround-text (random-color-text "MASTER MIND")) n
-       "Colors : " 
-       (clojure.string/join " " (map #(colored-text (name %) %) colors)) n
-       "Answer example : "
-       (clojure.string/join (map #(colored-text (first %) (second %)) color-char)) n n
-       "Display example : "
-       (answer-to-color colors) n
-       "Hint example :    "
-       (answer-to-color
-        (indic-to-color-keyword colors [:good :color :bad :color :good :bad])) n n
-       "Meaning : "
+(def colors-screen
+  (str "Colors : "
+       (clojure.string/join " " (map #(colored-text (name %) %) colors)) n))
+
+(def answer-screen
+  (str  "Answer example : "
+        (clojure.string/join (map #(colored-text (first %) (second %)) color-char)) n n))
+
+(def display-screen (str "Display example : " (color-vec-to-print colors) n))
+
+(def hint-screen
+  (str "Hint example :    "
+       (color-vec-to-print
+        (ind-to-color-vec colors [:good :color :bad :color :good :bad])) n n))
+
+(def meaning-screen
+  (str "Meaning :"
        (colored-text "red " :red) "present at the good position" n
        (repeat-s 10) (colored-text "green " :green) "present but different position" n
        (repeat-s 10) (colored-text "blue " :blue) "not present" n
        (repeat-s 10) (colored-text "yellow " :yellow) "present but different position" n
        (repeat-s 10) (colored-text "purple " :purple) "present at the good position" n
-       (repeat-s 10) (colored-text "cyan " :cyan) "not present" n
-       "To quit:  " (colored-text "exit" :blue) n
-       (surround-text "LET'S PLAY") n
+       (repeat-s 10) (colored-text "cyan " :cyan) "not present" n))
+
+(def quit-screen
+  (str "To quit: " (colored-text "quit" :blue) n))
+
+(defn size-screen [code-size] 
+  (str (surround-text (random-color-text "LET'S PLAY")) n
        "Code size  : " (colored-text code-size :red)))
 
-(defn prompt-move
-  "Promt a move"
+(defn print-start-screen
+  "Start screen string"  
   [code-size]
-  (print "Your guess : ")
-  (flush)
+  (println game-screen colors-screen answer-screen
+           display-screen hint-screen meaning-screen
+           quit-screen (size-screen code-size)))
+
+(defn print-valid-move [move]
+  (println (repeat-s 12)
+           (color-vec-to-print (text-to-color-vec move))))
+
+(defn print-invalid-move []
+  (println (colored-text "\nInvalid move" :red)))
+
+(defn print-attempt [attempt, number]
+  (println "Attempt : " number (color-vec-to-print attempt)))
+
+(defn print-guess []
+  (print "Your guess : ") (flush))
+
+(defn print-answer [answer]
+  (println "Answer :    " (color-vec-to-print answer)))
+
+(defn print-game-end []
+  (println (surround-text (random-color-text "WELL DONE!"))))
+
+
+(defn prompt-move 
+  "Prompt a move"
+  [code-size answer]
+  (print-guess)
   (let [input (get-input)]
-    (if (valid-move? code-size input)
-      (do
-        (println (repeat-s 12)
-                 (answer-to-color (answer-to-color-keyword input)))
-        (answer-to-color-keyword input))
-      (do 
-        (println (colored-text "\nInvalid move" :red))
-        (prompt-move code-size)))))
-
-
+    (cond
+      (= "quit" input) (System/exit 0)
+      (= "answer" input)              ;; cheaters gonna' cheat xD
+      (do (print-answer answer)
+          (prompt-move code-size answer))
+      :default    
+      (if (valid-move? code-size input)
+        (do
+          (print-valid-move input)
+          (text-to-color-vec input))
+        (do 
+          (print-invalid-move)
+          (prompt-move code-size answer))))))
 
 
 (defn game-loop
   "Main game loop"
   []
-  (println (start-screen 5))
+  (print-start-screen 5)
   (let [size 5, answer (code-secret size)]
-    (println "Answer" (answer-to-color answer))
-    (loop [stop false]
+    ;;(print-answer answer)
+    (loop [stop false, nb-attempts 1]
       (if (not stop)
-        (let [try (prompt-move size),
+        (let [try (prompt-move size answer),
               indic (filtre-indications answer try (indications answer try))
-              attempt (indic-to-color-keyword answer indic)]
+              attempt (ind-to-color-vec answer indic)]
           (do
-            (println "Attempt     "(answer-to-color attempt))
-            ;;(println "Indications" indic)
-            (recur (game-finished? indic))))))
-      (println "Game Finished")))
-
+            (print-attempt attempt nb-attempts)
+            (recur (game-finished? indic) (inc nb-attempts))))))
+    (print-game-end)))
 
 (defn -main
-  "I don't do a whole lot ... yet."
-  [& args]
+  "Main program"
+  [& args] 
   (game-loop))
-

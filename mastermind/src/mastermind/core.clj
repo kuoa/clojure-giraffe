@@ -2,13 +2,12 @@
 ;;              MASTERMIND               ;;
 ;;***************************************;;
 ;;                                       ;;
-;;             Author: kuoa              ;;
+;;        https://github.com/kuoa        ;;
 ;;***************************************;;
 
 
 (ns mastermind.core
   (:gen-class))
-
 
 ;;***************************************;;
 ;;              Game Logic               ;;
@@ -82,6 +81,7 @@
 ;;           Colors and text             ;;
 ;;***************************************;;
 
+
 (def color-char (zipmap ["r" "g" "b" "y" "p" "c"]
                         [:red, :green, :blue, :yellow, :purple, :cyan]))
 
@@ -127,7 +127,6 @@
 (defn random-color-text
   "Generate a text-string using random colors"
   [text]
-
   (clojure.string/join (map colored-text text (code-secret (count text)))))
 
 (defn text-to-color-vec
@@ -199,6 +198,9 @@
 (def quit-screen
   (str "To quit: " (colored-text "quit" :blue) n))
 
+(def solver-screen
+  (str "Solve  : " (colored-text "solver" :green) n))
+
 (defn size-screen [code-size] 
   (str (surround-text (random-color-text "LET'S PLAY")) n
        "Code size  : " (colored-text code-size :red)))
@@ -208,6 +210,7 @@
   [code-size]
   (println game-screen colors-screen answer-screen
            display-screen hint-screen meaning-screen
+           solver-screen
            quit-screen (size-screen code-size)))
 
 (defn print-valid-move [move]
@@ -229,6 +232,70 @@
 (defn print-game-end []
   (println (surround-text (random-color-text "WELL DONE!"))))
 
+(defn print-solver-screen []
+  (println (surround-text (random-color-text "  SOLVER"))))
+
+(defn print-found-color [color]
+  (println (str (repeat-s 18) (colored-text (name color) color ) " OK\n")))
+
+(defn print-not-found-color [color]
+  (println (str (repeat-s 18) (colored-text (name color) color ) " KO\n")))
+
+
+
+;;***************************************;;
+;;               SOLVER                  ;;  
+;;***************************************;;
+;;             Super-solver              ;;
+;;***************************************;;
+
+(defn check-color
+  "Check the presence of a color, provides a vector containing the indexes"
+  ;; create a vector of the same size as the answer
+  ;; containing only one color
+  ;; analyze the result and take the indexes of the :good positions
+
+  [color, answer]
+  (let [try (into [] (repeat (count answer) color))
+        indic (indications answer try)]
+    (loop [i 0, res []]
+      (if (< i (count answer))
+        (if (= :good (get indic i))
+          (recur (inc i), (conj res i))
+          (recur (inc i), res))
+        res))))
+
+
+(defn add-to-answer
+  "Returns a vector where color is added o all index-vector components"  
+  [color, index-vector, res]
+  (loop [i 0, res res]
+    (if (< i (count index-vector))
+      (recur (inc i) (assoc res (get index-vector i) color))
+    res)))
+
+(defn solver
+  "Find by trial and error all the colors present in the answer"
+  [answer]
+  (loop [i 0, result (into [] (repeat (count answer) :miss))]
+    (if (< i (count colors))
+      (let [color (get colors i)
+            index-vector (check-color color answer)]
+        (if (seq index-vector)
+          (do (print-found-color color)
+              (recur (inc i) (add-to-answer color index-vector result)))
+          (do (print-not-found-color color)
+              (recur (inc i) result)))      
+        )
+      result)))
+
+
+;;***************************************;;
+;;              GAME-LOOP                ;;
+;;***************************************;;
+;;               Limbo                   ;;
+;;***************************************;;
+
 
 (defn prompt-move 
   "Prompt a move"
@@ -237,6 +304,10 @@
   (let [input (get-input)]
     (cond
       (= "quit" input) (System/exit 0)
+      (= "solver" input)
+      (do (print-solver-screen)
+          (print-answer (solver answer))
+          (prompt-move code-size answer))
       (= "answer" input)              ;; cheaters gonna' cheat xD
       (do (print-answer answer)
           (prompt-move code-size answer))
